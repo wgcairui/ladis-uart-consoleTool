@@ -1,13 +1,15 @@
 'use strict'
 
-import { app, protocol, BrowserWindow, Menu, shell, screen, ipcMain, dialog, remote } from 'electron'
+import { app, protocol, BrowserWindow, Menu, shell, screen, ipcMain, dialog } from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer'
 import querystring from "querystring"
+import path from "path"
 
 import fs from 'fs'
 import InterByteTimeout from "@serialport/parser-inter-byte-timeout"
 import SerialPort from 'serialport'
+import IpcEvent from './IpcEvent'
 
 (<any>global).SerialPort = SerialPort;
 (<any>global).fs = fs;
@@ -17,8 +19,7 @@ import SerialPort from 'serialport'
 const isDevelopment = process.env.NODE_ENV !== 'production'
 app.allowRendererProcessReuse = false
 let win: BrowserWindow
-// 存放serialPort实例
-const serialPortMap = new Map<string, SerialPort>()
+const ipcEvent = new IpcEvent()
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
@@ -35,12 +36,20 @@ function createWindow() {
             // Use pluginOptions.nodeIntegration, leave this alone
             // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
             // nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION
-            nodeIntegration: true,
-            nodeIntegrationInWorker: true,
-            webSecurity: false
+            // nodeIntegration: true,
+            // nodeIntegrationInWorker: true,
+            nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION as unknown as boolean,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
         }
 
     })
+
+    win.once('ready-to-show', () => {
+        win.show()
+    })
+
+    ipcEvent.attch(app, win)
 
     if (process.env.WEBPACK_DEV_SERVER_URL) {
         // Load the url of the dev server if in development mode
@@ -84,26 +93,6 @@ function createWindow() {
                     click: function () {
                         win.webContents.send('loadOptions');
                     }
-                },
-                {
-                    label: '关闭',
-                    accelerator: 'Ctrl + W',
-                    click: function () {
-                        app.quit();
-                    }
-                }
-            ]
-        },
-        {
-            label: '视图',
-            role: 'viewMenu',
-            submenu: [
-                {
-                    label: '刷新端口列表',
-                    accelerator: 'Ctrl + R',
-                    click: function () {
-                        win.webContents.send('reloadPorts');
-                    }
                 }
             ]
         },
@@ -113,15 +102,15 @@ function createWindow() {
             accelerator: 'Ctrl + H',
             submenu: [
                 {
-                    label: '问题反馈',
+                    label: '反馈',
                     click: function () {
-                        shell.openExternal('https://github.com/rymcu/nebula-helper/issues')
+                        shell.openExternal('https://github.com/wgcairui/ladis-uart-consoleTool')
                     }
                 },
                 {
-                    label: '关于我们',
+                    label: '透传网站',
                     click: function () {
-                        shell.openExternal('https://rymcu.com')
+                        shell.openExternal('https://uart.ladishb.com')
                     }
                 }
             ]
@@ -176,28 +165,3 @@ if (isDevelopment) {
         })
     }
 }
-
-
-ipcMain
-    .on('rebootApp', (event, arg) => {
-        dialog.showMessageBox({
-            title: '致命错误',
-            message: arg
-        })
-    })
-    // 响应打开文件对话框
-    .on('dialogOpen', (event, opt) => {
-        dialog.showOpenDialog(opt).then(el => event.returnValue = el)
-    })
-    // 
-    .on('getSerial', (event, serialOpt: { path: string, options?: SerialPort.OpenOptions }) => {
-        const { path, options } = serialOpt
-        if (!serialPortMap.has(path)) {
-            const newSerial = new SerialPort(path, options)
-        }
-        const serial = serialPortMap.get(path)!
-        if(!serial.isOpen || serial.destroyed){
-            serialPortMap.delete(path)
-        }
-        event.returnValue = serialPortMap.get(path)!.isOpen
-    })

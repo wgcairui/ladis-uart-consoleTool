@@ -226,7 +226,7 @@
   import { baudRateList, parityList, dataBitList, stopBitList } from "../plugins/serialOptionArguments"
   // eslint-disable-next-line no-unused-vars
   import SerialPort, { PortInfo } from 'serialport';
-  import { api, dialogOpen, dialogSave, formatTime, hexToNumber, InterByteTimeout, ipcRenderer, Noti, NotiErr, protocolParse, serialport, serialPortList, } from "../plugins/common"
+  import { api, dialogOpen, dialogSave, formatTime, hexToNumber, Noti, NotiErr, serialPortList, Serial, ipcRenderer, protocolParse, } from "../plugins/common"
   import { CascaderOption } from 'element-plus/lib/el-cascader-panel';
 
   interface pullDatalog {
@@ -238,7 +238,7 @@
     name: 'Main',
     setup() {
       const ports = ref<PortInfo[]>([])  // 本机串口列表
-      const port = ref<SerialPort>()
+      const port = ref<Serial>()
       const protocols = ref<Uart.protocol[]>()
       const queryCacheMap = new Map<string, string>() // 缓存查询字符串编码的crc
       const InstructItem = ref<Uart.protocolInstruct>()
@@ -388,38 +388,37 @@
        * 打开串口
        */
       const openCom = () => {
-        const serial = unref(port)
-        if (serial) {
+        if (port.value) {
+          const serial = unref(port)!
           serial.close()
-          serial.destroy()
           port.value = undefined
         } else {
-          port.value = new serialport(com.value, serialOpt, err => {
-            if (err) ipcRenderer.send('rebootApp', `${unref(com)}端口被占用,请检查`)
-          })
-          const serial = unref(port)!
-          serial.on('error', err => NotiErr(err))
+          const serial = new Serial(com.value, serialOpt)
+          console.log({ serial });
+
+          port.value = serial
           // 串口设备传来的数据 是buffer对象，用toString转一下码
-          const parse = serial.pipe(new InterByteTimeout({ interval: 10 }))
-          parse.on('data', (data: Buffer) => {
+          serial.data((data) => {
             // 如果启用了调试模式,把数据解析
-            if (InstructItem) parseInstruct(data)
+            if (InstructItem) parseInstruct(data as any)
             // 
             datas.pullBit = datas.pullBit + data.length
             const pullData = data.toString(Opt.Ecodeing)
-            datas.pullData.push({ time: formatTime(), data: pullData, type: 'recv' })
+           datas.pullData.push({ time: formatTime(), data: pullData, type: 'recv' })
           })
+
         }
+
       }
 
       /**
        * 解析数据
        */
-      const parseInstruct = (data: Buffer) => {
+      const parseInstruct = async (data: Buffer) => {
         const Instruct = unref(InstructItem)!
-        const resultMap = protocolParse.parse(data, Instruct, protocolOpt.type)
+        const resultMap = await protocolParse(data, Instruct, protocolOpt.type)
         // console.log({ arg, Instruct });
-        InstructItem.value?.formResize.forEach(el=>{
+        InstructItem.value?.formResize.forEach(el => {
           el.enName = resultMap.get(el.name)?.value
         })
       }
@@ -460,14 +459,9 @@
         datas.pushDataHis.push({ value: datas.pushData })
         const serial = unref(port)!
         // const pushData = Opt.hexSend ? handlerHex(datas.pushData) : Iconv.encode(datas.pushData, 'GB2312')
-        serial.write(datas.pushData, Opt.hexSend ? 'hex' : 'utf8', (err, result) => {
-          if (err) Noti('Error while sending message : ' + err)
-          if (result) Noti('Response received after sending message : ' + result)
-          // 接收字节数
-          datas.pushBit = datas.pushBit + datas.pushData.length
-          if (Opt.logSend) datas.pullData.push({ type: 'send', time: formatTime(), data: datas.pushData })
-        })
-        serial.drain(err => NotiErr(err))
+        serial.write(datas.pushData, Opt.hexSend ? 'hex' : 'utf8')
+        datas.pushBit = datas.pushBit + datas.pushData.length
+        if (Opt.logSend) datas.pullData.push({ type: 'send', time: formatTime(), data: datas.pushData })
       }
       /**
        * 获取串口列表
@@ -480,12 +474,12 @@
        * 接受列表操作信息
        */
       const genRenderer = () => {
-        ipcRenderer
+        /* ipcRenderer
           .on('saveOptions', () => saveOptions())
           .on('loadOptions', () => loadOptions())
           .on('reloadPorts', () => genPorts())
           .on('writeFile', () => writeFile())
-          .on('readFile', () => readFile())
+          .on('readFile', () => readFile()) */
       }
 
       /** 

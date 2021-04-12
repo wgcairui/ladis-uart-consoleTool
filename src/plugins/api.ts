@@ -1,4 +1,3 @@
-import { Querystring } from "./common";
 interface crcbody {
     protocolType: number
     pid: number
@@ -22,7 +21,7 @@ export default class Api {
     }
 
     private get(url: string, data: { [x in string]: any }) {
-        return fetch(`${url}?${Querystring.stringify(data)}`)
+        // return fetch(`${url}?${Querystring.stringify(data)}`)
     }
 
     /**
