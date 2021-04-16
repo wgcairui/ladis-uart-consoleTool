@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "esnext",
+    "target": "ES2019",
     "module": "esnext",
     "strict": true,
     "jsx": "preserve",
@@ -14,7 +14,9 @@
     "baseUrl": ".",
     "types": [
       "webpack-env",
-      "types-uart"
+      "types-uart",
+      "@types/node",
+      "element-plus"
     ],
     "paths": {
       "@/*": [
@@ -36,6 +38,7 @@
     "tests/**/*.tsx"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "dist_electron"
   ]
 }

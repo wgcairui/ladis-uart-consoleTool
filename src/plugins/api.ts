@@ -29,11 +29,11 @@ export default class Api {
      * @param body 
      * @returns 
      */
-    async crc(body: crcbody) {
+    /* async crc(body: crcbody) {
         const rs = await this.post('https://uart.ladishb.com/api/open/CRC', body);
         return rs.status === 200 ? await rs.text() : Promise.resolve('crc请求出错')
     }
-
+ */
     /**
      * 获取协议数据
      * @returns 

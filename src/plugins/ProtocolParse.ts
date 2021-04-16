@@ -1,3 +1,8 @@
+
+export interface query extends Uart.queryResultArgument {
+    regx: string
+}
+
 /**
  * 设备返回数据解析类,根据协议解析bufer
  */
@@ -39,9 +44,10 @@ class ProtocolParse {
             // 如果是utf8,分隔符为' '
             .split(instructs.isSplit ? " " : "");
         // console.log({ cont:el.content,parseStr, parseStrlen: parseStr.length, ins: instructs.formResize.length });
-        return instructs.formResize.map<Uart.queryResultArgument>(el2 => {
+        return instructs.formResize.map<query>(el2 => {
             const [start] = this.getProtocolRegx(el2.regx!)
-            return { name: el2.name, value: this.getUnit(parseStr[start - 1], el2.unit!, el2.isState), unit: el2.unit }
+            const regx = parseStr[start - 1]
+            return { name: el2.name, regx, value: this.getUnit(regx, el2.unit!, el2.isState), unit: el2.unit }
         });
     }
 
@@ -52,6 +58,8 @@ class ProtocolParse {
      * @returns 设备解析结果
      */
     private parse485(data: Buffer, instructs: Uart.protocolInstruct) {
+        // console.log({ shift: instructs.shift, shiftNum: instructs.shiftNum, pop: instructs.pop, popNum: instructs.popNum });
+
         const dataSlice = data.slice(instructs.shift ? instructs.shiftNum : 3, instructs.pop ? data.length - instructs.popNum : data.length - 2)
 
         // 把结果字段中的10进制转换为2进制,翻转后补0至8位,代表modbus线圈状态
@@ -66,13 +74,14 @@ class ProtocolParse {
         const buffer = instructs.resultType === "bit2" ? Buffer.from(dataSlice.toJSON().data.map(el2 => el2.toString(2).padStart(8, '0').split('').reverse().map(el3 => Number(el3))).flat()) : dataSlice
         return instructs.formResize.map(el2 => {
             // 申明结果
-            const result: Uart.queryResultArgument = { name: el2.name, value: '0', unit: el2.unit }
+            const result: query = { name: el2.name, value: '0', unit: el2.unit, regx: '' }
             // 每个数据的结果地址
             const [start, len] = this.getProtocolRegx(el2.regx!)
             switch (instructs.resultType) {
                 // 处理
                 case 'bit2':
                     const val = buffer[start - 1].toString()
+                    result.regx = buffer.slice(start - 1, start).toString('hex')
                     result.value = this.getUnit(val, el2.unit!, el2.isState)
                     break
                 // 处理整形
@@ -81,6 +90,7 @@ class ProtocolParse {
                     // 如果是浮点数则转换为带一位小数点的浮点数
                     const num = this.ParseCoefficient(el2.bl, buffer.readIntBE(start - 1, len))
                     const str = num.toString()
+                    result.regx = buffer.slice(start - 1, start - 1 + len).toString('hex')
                     result.value = /\./.test(str) ? num.toFixed(1) : this.getUnit(str, el2.unit!, el2.isState)
                     break;
             }
@@ -94,7 +104,7 @@ class ProtocolParse {
     * @param val 值
     * @returns 解析后的实际值
     */
-    ParseCoefficient(fun: string, val: number) {
+    private ParseCoefficient(fun: string, val: number) {
         if (Number(fun)) return Number(fun) * val as number
         else {
             const args = fun.replace(/(^\(|\)$)/g, '').split(',')
@@ -137,7 +147,7 @@ class ProtocolParse {
      */
     public parse(data: Buffer, instructs: Uart.protocolInstruct, Type: 232 | 485) {
         const result = Type === 232 ? this.parse232(data, instructs) : this.parse485(data, instructs)
-        return new Map(result.map(el => [el.name, el]))
+        return result
     }
 }
 

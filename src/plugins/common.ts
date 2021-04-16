@@ -1,16 +1,14 @@
 import { IpcRenderer } from "electron"
 import SerialPort from "serialport";
 import Api from "./api";
-
+import Clone from "clone"
+import { isReactive, isRef, toRaw, unref } from "@vue/reactivity";
+import { ElMessageBox } from "element-plus";
 
 /**
  * ipcRenderer实例
  */
 export const ipcRenderer: IpcRenderer = (<any>window).ipcRenderer
-
-console.log({ window });
-
-
 
 /**
  * api操作
@@ -127,8 +125,8 @@ export class Serial {
  * @param Type 
  * @returns 
  */
-export const protocolParse = (data: Buffer, instructs: Uart.protocolInstruct, Type: 232 | 485): Promise<Map<string, Uart.queryResultArgument>> => {
-    return ipcRenderer.invoke("protocolParse", data, JSON.stringify(instructs), Type)
+export const protocolParse = (data: Buffer, instructs: Uart.protocolInstruct, Type: 232 | 485): Promise<Uart.queryResultArgument[]> => {
+    return ipcRenderer.invoke("protocolParse", data, instructs, Type)
 }
 
 /**
@@ -141,44 +139,33 @@ export const numberArrayToString = (data: number, encodeing: "ascii" | "utf8" | 
     return ipcRenderer.sendSync('numberArrayToString', data, encodeing)
 }
 
+/**
+ * crc转换
+ * @param address 地址
+ * @param instruct 指令
+ * @returns 
+ */
+export const crc = (address: number, instruct: string): string => {
+    return ipcRenderer.sendSync("crc", address, instruct)
+}
 
 /**
-* 序列化接收stream，当接收流间隔为指定值内为连续字符内容
-*/
-/* class InterByteTimeoutParser extends stream.Transform {
-    maxBufferSize: number
-    currentPacket: number[]
-    interval: number
-    intervalID!: NodeJS.Timeout
-    constructor(options: { interval: number; maxBufferSize?: number }) {
-        super()
-        options = { maxBufferSize: 65536, ...options }
+ * 深克隆对象
+ * @param val 
+ * @param circular 
+ * @returns 
+ */
+export const clone = <T>(val: T, circular?: boolean | undefined): T => {
+    const data = isRef<T>(val) ? unref(val) : (isReactive(val) ? toRaw(val) : val)
+    return Clone(data, circular)
+}
 
-        this.maxBufferSize = options.maxBufferSize!
-        this.currentPacket = []
-        this.interval = options.interval
-    }
-    _transform(chunk: number[], encoding: string, cb: CallableFunction) {
-
-        clearTimeout(this.intervalID)
-        for (let offset = 0; offset < chunk.length; offset++) {
-            this.currentPacket.push(chunk[offset])
-            if (this.currentPacket.length >= this.maxBufferSize) {
-                this.emitPacket()
-            }
-        }
-        this.intervalID = setTimeout(this.emitPacket.bind(this), this.interval)
-        cb()
-    }
-    emitPacket() {
-        clearTimeout(this.intervalID)
-        if (this.currentPacket.length > 0) {
-            this.push(Buffer.from(this.currentPacket))
-        }
-        this.currentPacket = []
-    }
-    _flush(cb: CallableFunction) {
-        this.emitPacket()
-        cb()
-    }
-} */
+/**
+ * 弹窗输入新的值
+ * @param value 初始值
+ */
+export const inputValue = async <T extends number | string>(value: T): Promise<T | false> => {
+    const isNumber = typeof value === "number"
+    const result: any = await ElMessageBox.prompt('修改值', 'modify', { inputValue: String(value), inputPattern: isNumber ? /^\d+$/ : /.*/, inputErrorMessage: '只能输入数字' }).catch(e => false)
+    return result ? isNumber ? Number(result.value) : result.value : result
+}
