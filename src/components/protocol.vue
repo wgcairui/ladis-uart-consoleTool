@@ -25,12 +25,15 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button @click="loadConsole">载入调试</el-button>
+          <el-button-group>
+            <el-button @click="loadConsole">载入调试</el-button>
+          </el-button-group>
         </el-form-item>
         <el-form-item>
           <el-button-group>
-            <el-button type="primary" @click="saveProtocol" :disabled="!protocols">保存协议</el-button>
             <el-button type="primary" @click="loadProtocol">载入协议</el-button>
+            <el-button type="primary" @click="saveProtocol" :disabled="!protocols">保存协议</el-button>
+            <el-button type="success" @click="addInstruct" :disabled="!protocolOpt.protocol">添加指令</el-button>
           </el-button-group>
         </el-form-item>
       </el-form>
@@ -91,6 +94,7 @@
                 </el-select>
               </el-form-item>
               <el-input
+                readonly
                 type="textarea"
                 v-model="InstructItem.resize"
                 :rows="5"
@@ -133,6 +137,14 @@
         protocol: ['th', '温湿度1'] as string[],
         pid: 5
       })
+
+      const instructFrom = {
+        name: '未命名',
+        regx: '1-1',
+        bl: '1',
+        unit: "",
+        isState: false
+      }
 
       // 格式化协议选择
       const formatProtocol = computed(() => {
@@ -190,7 +202,15 @@
        */
       const saveProtocol = async () => {
         const ps = unref(protocols)
-        const el = await ElMessageBox.confirm(`是否保存全部协议,取消则仅保存 (${protocolOpt.protocol[1]}) 协议!!`).catch(() => false)
+        const el = await ElMessageBox.confirm(`是否保存全部协议,取消则仅保存 (${protocolOpt.protocol[1]}) 协议!!`,
+          {
+            cancelButtonText: protocolOpt.protocol[1],
+            confirmButtonText: '全部',
+            type: "info",
+            lockScroll: false,
+            roundButton: true
+          })
+          .catch(() => false)
         dialogSave(JSON.stringify(el ? ps : ps.find(el => el.Protocol === protocolOpt.protocol[1] && el.ProtocolType === protocolOpt.protocol[0])), {
           title: '保存透传协议',
           filters: [
@@ -257,27 +277,68 @@
         // console.log({ row, column });
         const property = column.property
         const value = (<any>row)[property] as string
+        if (property !== 'enName') {
+          inputValue(value).then(el => {
+            if (el) {
+              if (property === 'unit') {
+                row.isState = /^{.*}$/.test(el)
+                // 替换可能出现的全角字符
+                el = el.replaceAll("：", ":")
+                el = el.replaceAll("，", ",")
+              }
+              (<any>row)[property] = el
+              const item = unref(InstructItem)!
+              item.resize = item.formResize.map(el => Object.values(el).join("+")).join("&\n")
+            }
+          })
+        }
+      }
 
-        inputValue(value).then(el => {
-          if (el) {
-            (<any>row)[property] = el
-            const item = unref(InstructItem)!
-            item.resize = item.formResize.map(el => Object.values(el).join("+")).join("&\n")
+      /**
+       * 添加新的指令
+       */
+      const addInstruct = async () => {
+        const result = await ElMessageBox.prompt('写入指令字符:', '添加新的指令').catch(() => false)
+        if (result) {
+          const value = (result as any).value as string
+          const protocol = protocols.value.find(el => el.Protocol === protocolOpt.protocol[1])!
+          // 如果指令名称不重复
+          if (protocol.instruct.findIndex(el => el.name === value) === -1) {
+            const isModbus = protocol.Type === 485
+            const newInstruct: Uart.protocolInstruct = {
+              name: value,
+              resultType: isModbus ? 'hex' : 'utf8',
+              shift: true,
+              shiftNum: isModbus ? 3 : 1,
+              pop: true,
+              popNum: isModbus ? 2 : 0,
+              isUse: true,
+              isSplit: true,
+              resize: '未命名+1-1+1&\n',
+              formResize: [instructFrom],
+              noStandard: false,
+              scriptStart: '',
+              scriptEnd: ''
+            }
+            // 加入到指令列表
+            protocol.instruct.push(newInstruct)
+            // 手动更新指令列表
+            focusInstructs()
+            // 替换现有实例
+            InstructItem.value = newInstruct
+          } else {
+            await ElMessageBox.alert("指令名称重复!!!", { type: "warning" })
+            addInstruct()
           }
-        })
+
+        }
       }
 
       /**
        * 添加指令新的参数
        */
       const addIntructFrom = () => {
-        InstructItem.value?.formResize.push({
-          name: '未命名',
-          regx: '1-1',
-          bl: '1',
-          unit: "",
-          isState: false
-        })
+        InstructItem.value?.formResize.push(instructFrom)
       }
 
       onMounted(() => {
@@ -288,7 +349,7 @@
         })
       })
 
-      return { protocols, loadConsole, Instructs, InstructItem, focusInstructs, setShiftPopNum, formatProtocol, protocolOpt, addIntructFrom, saveProtocol, loadProtocol, getArgumentValue, tableClick }
+      return { protocols, loadConsole, Instructs, InstructItem, focusInstructs, setShiftPopNum, formatProtocol, protocolOpt, addInstruct, addIntructFrom, saveProtocol, loadProtocol, getArgumentValue, tableClick }
     }
   })
 

@@ -134,7 +134,7 @@
           <el-button-group>
             <el-button size="small" @click="()=>datas.pullData = []">清空接收区</el-button>
             <el-button size="small" @click="writeFile">保存接收记录</el-button>
-            <el-button size="small" @click="readFile">读取文件</el-button>
+            <el-button size="small" @click="readFile">读取记录</el-button>
             <el-button size="small" @click="resetCountBit">计数清零</el-button>
           </el-button-group>
         </el-form-item>
@@ -146,11 +146,11 @@
 </template>
 
 <script lang="ts">
-  import { computed, defineComponent, nextTick, onMounted, reactive, ref, toRaw, unref, watch } from 'vue';
+  import { computed, defineComponent, nextTick, reactive, ref, toRaw, unref, watch } from 'vue';
   import { baudRateList, parityList, dataBitList, stopBitList } from "../plugins/serialOptionArguments"
   // eslint-disable-next-line no-unused-vars
   import SerialPort, { PortInfo } from 'serialport';
-  import { api, dialogOpen, dialogSave, formatTime, hexToNumber, Noti, NotiErr, serialPortList, Serial, protocolParse, crc, ipcRenderer, } from "../plugins/common"
+  import { dialogOpen, dialogSave, formatTime, hexToNumber, Noti, NotiErr, serialPortList, Serial, protocolParse, crc, } from "../plugins/common"
   import Protocol from './protocol.vue';
 
   interface pullDatalog {
@@ -343,7 +343,7 @@
         dialogOpen({
           title: '读取文件',
           filters: [
-            { name: 'txt', extensions: ['txt'] }
+            { name: 'log.json', extensions: ['json'] }
           ],
           properties: ["openFile"]
         }).then(data => {
@@ -362,7 +362,7 @@
         dialogSave(JSON.stringify(datas.pullData), {
           title: '保存接收数据',
           filters: [
-            { name: 'txt', extensions: ['txt'] }
+            { name: 'log.json', extensions: ['json'] }
           ]
         })
       }
