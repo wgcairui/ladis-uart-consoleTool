@@ -1,1 +1,1 @@
-# win10由于electron支持问题,electron版本使用11,指定install参数为  --runtime=electron --target=11.4.3 --disturl=https://npm.taobao.org/mirrors/atom-shell --abi=85,mac下可使用最新版本electron
+# win10由于electron支持问题,electron版本使用最高version11.x,serialport不支持electron11.x,所以win版本下electron使用10.4.3,指定install参数为  --runtime=electron --target=10.4.3 --disturl=https://npm.taobao.org/mirrors/atom-shell --abi=82,mac下可使用最新版本electron
